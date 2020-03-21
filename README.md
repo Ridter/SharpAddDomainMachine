@@ -22,3 +22,9 @@ export KRB5CCNAME=administrator.ccache
 psexec.py domain/administrator@tm.domain -k -no-pass
 ```
 
+exploit:
+![](https://blogpics-1251691280.file.myqcloud.com/imgs/20200321153023.png)
+get ccache:
+![](https://blogpics-1251691280.file.myqcloud.com/imgs/20200321153107.png)
+get system:
+![](https://blogpics-1251691280.file.myqcloud.com/imgs/20200321153123.png)
