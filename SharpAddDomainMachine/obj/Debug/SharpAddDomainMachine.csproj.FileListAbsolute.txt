@@ -1,0 +1,1 @@
+E:\codes\csharp\SharpAddDomainMachine\SharpAddDomainMachine\bin\Debug\SharpAddDomainMachine.exe.config
