@@ -1,4 +1,12 @@
-﻿using System;
+﻿/*
+This code can be complied by csc.exe or Visual Studio.
+Supprot.Net 3.5 or later.
+Complie:
+C:\Windows\Microsoft.NET\Framework64\v3.5\csc.exe Program.cs /r:System.DirectoryServices.dll,System.DirectoryServices.Protocols.dll
+or
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe Program.cs /r:System.DirectoryServices.dll,System.DirectoryServices.Protocols.dll
+*/
+using System;
 using System.Text;
 using System.Security.AccessControl;
 using System.Security.Principal;
