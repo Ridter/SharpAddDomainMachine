@@ -27,3 +27,6 @@ exploit:
 
 getsystem:
 ![](https://blogpics-1251691280.file.myqcloud.com/imgs/20200330175524.png)
+
+Rubeus example:
+![](https://blogpics-1251691280.file.myqcloud.com/imgs/20200330224044.png)
